@@ -556,19 +556,25 @@ nacm_datanode_read(cxobj  *xt,
     char   *read_default = NULL;
     cxobj  *xrule;
     char   *action;
+    int allow_read_default = 1;
+
+    read_default = xml_find_body(xnacm, "read-default");
+    if (!read_default || (strcmp(read_default, "deny")==0))
+	allow_read_default = 0;
     
     /* 3.   Check all the "group" entries to see if any of them contain a
        "user-name" entry that equals the username for the session
        making the request.  (If the "enable-external-groups" leaf is
        "true", add to these groups the set of groups provided by the
-       transport layer.)	       */
-    if (username == NULL)
+       transport layer.)
+    */
+    if (!username && !allow_read_default)
 	goto step9;
     /* User's group */
-    if (xpath_vec(xnacm, "groups/group[user-name='%s']", &gvec, &glen, username) < 0)
+    if ((xpath_vec(xnacm, "groups/group[user-name='%s']", &gvec, &glen, username) < 0) && !allow_read_default)
 	goto done;
     /* 4. If no groups are found, continue with step 9. */
-    if (glen == 0)
+    if (!glen && !allow_read_default)
 	goto step9;
     /* 5. Process all rule-list entries, in the order they appear in the
         configuration.  If a rule-list's "group" leaf-list does not
@@ -601,8 +607,7 @@ nacm_datanode_read(cxobj  *xt,
         to "permit", then include the requested data node in the reply;
         otherwise, do not include the requested data node or any of its
         descendants in the reply.*/
-	    read_default = xml_find_body(xnacm, "read-default");
-	    if (read_default == NULL || strcmp(read_default, "deny")==0)
+	    if (!allow_read_default)
 		if (xml_purge(xr) < 0)
 		    goto done;
 	}
